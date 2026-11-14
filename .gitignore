@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+
+# secrets — JANGAN pernah commit
+.env
+client_secret.json
+gmail_token.json
+
+# data runtime (token OAuth + alias + daftar akun)
+data/
+
+# data lokal v1-style
+aliases.json
+backups/
+
+# logs & misc
+*.log
+.DS_Store
