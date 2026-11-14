@@ -112,6 +112,41 @@ export default function SettingsPage() {
 
   const connectedCount = accounts.filter(a => a.connected).length;
 
+  // --- API keys state ---
+  const [apiKeys, setApiKeys] = useState([]);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [freshKey, setFreshKey] = useState(null); // plaintext sekali tampil
+  const loadKeys = () =>
+    fetch("/api/apikeys", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => setApiKeys(d.keys || []))
+      .catch(() => {});
+  useEffect(() => { loadKeys(); }, []);
+
+  async function createKey(e) {
+    e.preventDefault();
+    if (!newKeyName.trim()) return;
+    setLoading(true);
+    const r = await fetch("/api/apikeys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newKeyName.trim() }),
+      credentials: "include",
+    });
+    const d = await r.json();
+    if (!r.ok) { setMsg(d.error); setMsgOk(false); setLoading(false); return; }
+    setFreshKey({ key: d.key, name: d.name });
+    setNewKeyName("");
+    loadKeys();
+    setLoading(false);
+  }
+
+  async function revokeKey(id) {
+    if (!confirm("Revoke key ini? Client yang pake langsung kehilangan akses.")) return;
+    await fetch(`/api/apikeys?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
+    loadKeys();
+  }
+
   return (
     <>
       <NAV accounts={accounts} active={active} />
@@ -174,6 +209,44 @@ export default function SettingsPage() {
           <h1 style={{ fontSize:14, marginBottom:8 }}>Redirect URI</h1>
           <input className="input" value={redirectUri} onChange={e=>setRedirectUri(e.target.value)} />
           <p style={{ fontSize:11, color:"#555", marginTop:4 }}>Harus terdaftar di Google Cloud Console (OAuth client).</p>
+        </div>
+
+        <div className="card">
+          <h1 style={{ fontSize:14, marginBottom:12 }}>API Keys ({apiKeys.length})</h1>
+          <p style={{ fontSize:12, color:"#888", marginBottom:10 }}>
+            Buat automation/script. Pakai header: <code style={{ color:"#4fc3f7" }}>Authorization: Bearer ***</code> — opsional <code style={{ color:"#4fc3f7" }}>X-Account: email@gmail.com</code> buat pilih akun.
+          </p>
+          {apiKeys.length === 0 && <p style={{ color:"#555", fontSize:13 }}>Belum ada key.</p>}
+          {apiKeys.map(k => (
+            <div key={k.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:"1px solid #222", flexWrap:"wrap" }}>
+              <span style={{ fontSize:13, color:"#ccc", flex:1, minWidth:150 }}>{k.name}</span>
+              <span style={{ fontSize:11, color:"#666" }}>
+                dibikin {new Date(k.created_at).toLocaleDateString("id")}
+                {k.last_used_at ? ` · dipake ${new Date(k.last_used_at).toLocaleString("id")}` : " · belum pernah dipake"}
+              </span>
+              <button className="btn btn-danger" style={{ fontSize:11, padding:"4px 8px" }} onClick={()=>revokeKey(k.id)}>revoke</button>
+            </div>
+          ))}
+          <form onSubmit={createKey} style={{ marginTop:12 }}>
+            <div className="row">
+              <input className="input" placeholder="nama key (misal: bot-telegram)" value={newKeyName} onChange={e=>setNewKeyName(e.target.value)} style={{ flex:2, minWidth:180 }} />
+              <button className="btn btn-primary" disabled={loading || !newKeyName.trim()}>+ Bikin Key</button>
+            </div>
+          </form>
+          {freshKey && (
+            <div style={{ marginTop:12, padding:12, background:"#1a2a1a", border:"1px solid #2a5a2a", borderRadius:4 }}>
+              <p style={{ fontSize:12, color:"#81c784", marginBottom:6 }}>
+                Key <strong>{freshKey.name}</strong> dibuat. <strong>Copy sekarang — ga bakal ditampilin lagi:</strong>
+              </p>
+              <div className="row">
+                <input className="input" readOnly value={freshKey.key} style={{ flex:1, fontFamily:"monospace", fontSize:12 }} onFocus={e=>e.target.select()} />
+                <button className="btn" style={{ fontSize:12, background:"transparent", border:"1px solid #444", color:"#4fc3f7" }}
+                  onClick={()=>navigator.clipboard.writeText(freshKey.key).catch(()=>{})}>copy</button>
+                <button className="btn" style={{ fontSize:12, background:"transparent", border:"1px solid #444", color:"#888" }}
+                  onClick={()=>setFreshKey(null)}>tutup</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {msg && <p style={{ color: msgOk ? "#66bb6a" : "#ef5350", marginTop:8 }}>{msg}</p>}
