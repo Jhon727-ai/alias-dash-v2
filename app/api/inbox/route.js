@@ -4,6 +4,9 @@ import { activeEmail } from "../../../lib/active.js";
 import { requireAuth } from "../../../lib/auth.js";
 import { getGmail, buildAliasQuery } from "../../../lib/gmail.js";
 import { getAccount, hasToken } from "../../../lib/accounts.js";
+import { mapLimit } from "../../../lib/mapLimit.js";
+
+const FETCH_CONCURRENCY = 8; // jangan lempar 50 request sekaligus — kuota Gmail 250 units/detik
 
 
 export async function GET(req) {
@@ -28,14 +31,12 @@ export async function GET(req) {
     const q = buildAliasQuery(alias);
     const list = await gmail.users.messages.list({ userId: "me", q, maxResults: max });
     const msgs = list.data.messages || [];
-    const detailed = await Promise.all(
-      msgs.slice(0, max).map(async (m) => {
+    const detailed = await mapLimit(msgs.slice(0, max), FETCH_CONCURRENCY, async (m) => {
         const full = await gmail.users.messages.get({ userId: "me", id: m.id, format: "metadata" });
         const headers = full.data.payload?.headers || [];
         const get = (name) => headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
         return { id: m.id, from: get("From"), subject: get("Subject"), date: get("Date"), snippet: full.data.snippet || "" };
-      })
-    );
+    });
     return NextResponse.json({ account: email, alias, count: list.data.resultSizeEstimate, messages: detailed });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });

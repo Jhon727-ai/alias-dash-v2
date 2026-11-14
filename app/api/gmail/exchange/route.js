@@ -16,7 +16,7 @@ export async function POST(req) {
   if (!raw) return NextResponse.json({ error: "code wajib" }, { status: 400 });
   if (!state) return NextResponse.json({ error: "state wajib" }, { status: 400 });
 
-  const flow = readState(state);
+  const flow = await readState(state);
   if (!flow) return NextResponse.json({ error: "state gak valid / kadaluarsa — ulangi dari awal" }, { status: 400 });
 
   let code = raw;

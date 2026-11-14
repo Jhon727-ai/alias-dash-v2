@@ -16,7 +16,7 @@ export async function GET(req) {
   if (!redirectUri) return NextResponse.json({ error: "redirect_uri wajib (atau set OAUTH_REDIRECT_URI)" }, { status: 400 });
   if (!getAccount(email)) return NextResponse.json({ error: `Akun ${email} belum didaftarkan` }, { status: 404 });
 
-  const state = createState(email);
+  const state = await createState(email);
   const oauth = oauthClient(redirectUri);
   const url = oauth.generateAuthUrl({
     access_type: "offline",

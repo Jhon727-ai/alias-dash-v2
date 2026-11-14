@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import { listAccounts, hasToken, readAliases, mutateAliases, touchAccount } from "../lib/accounts.js";
 import { getGmail } from "../lib/gmail.js";
+import { mapLimit } from "../lib/mapLimit.js";
 
 const STATE_PATH = "/root/alias-dash-v2/data/scan_state.json";
 const MAX_EMAILS = 200;
@@ -40,8 +41,7 @@ async function scanAccount(acc) {
     const perAlias = {};
     const aliasSet = new Set(readAliases(email).map((a) => a.alias.toLowerCase()));
 
-    await Promise.all(
-      msgs.map(async (m) => {
+    await mapLimit(msgs, FETCH_CONCURRENCY, async (m) => {
         const full = await gmail.users.messages.get({ userId: "me", id: m.id, format: "metadata" });
         const headers = full.data.payload?.headers || [];
         const get = (n) => headers.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value || "";
@@ -55,8 +55,7 @@ async function scanAccount(acc) {
           const d = full.data.internalDate ? new Date(parseInt(full.data.internalDate, 10)).toISOString() : "";
           if (d > (perAlias[key].last_date || "")) perAlias[key].last_date = d;
         }
-      })
-    );
+    });
 
     const now = new Date().toISOString();
     if (Object.keys(perAlias).length > 0) {
